@@ -1,14 +1,7 @@
-from fastapi import FastAPI, Request
-import httpx
-from fastapi.responses import JSONResponse
-from dotenv import load_dotenv
 import os
+from server.route_param_models.generate_insights_and_actions import GenerateInsightActionsParams
+import httpx
 import re
-from pydantic import BaseModel, ValidationError
-
-load_dotenv()
-
-app = FastAPI()
 
 TOKEN = os.getenv("FRIENDLI_KEY")
 URL = os.getenv("FRIENDLI_URL")
@@ -17,18 +10,6 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-# Data model for parameters
-class RestyRouteParam(BaseModel):
-    species: str
-    temperature: float
-    dissolved_oxygen: float
-    ph: float
-    ammonia: float
-    nitrate: float
-    salinity: float
-    transparency: float
-
-# Function to extract parameter insights using regex
 def extract_parameter_insights(response: str) -> dict:
     # Regular expression to extract details
     pattern = r"\d+\.\s+\*\*(.+?) \((.+?)\)\*\*:\s*-\s+\*\*Insight:\*\*\s*(.+?)\s*-\s+\*\*Actions:\*\*\s*((?:\s*-\s+.+\n?)*)\s*-\s+\*\*Products:\*\*\s*((?:\s*-\s+.+\n?)|None)"
@@ -48,9 +29,7 @@ def extract_parameter_insights(response: str) -> dict:
 
     return result
 
-# Function to get response from external service
-async def get_resty_response(resty_route_param: RestyRouteParam):
-    # Message template for the external service
+async def generate_insights_and_actions(param: GenerateInsightActionsParams):
     message_template = (
         f"You are an expert in aquaculture. Based on the given water quality readings from a tilapia pond, "
         f"provide short and specific insights and clear actions to address the issue . Focus only on what needs to be done."
@@ -65,14 +44,14 @@ async def get_resty_response(resty_route_param: RestyRouteParam):
         f"     - [Product type] (active ingredient: [active ingredient])\n"
         f"     - [Product type] (active ingredient: [active ingredient])\n\n"
         f"Here are the current water quality parameters:\n\n"
-        f"- Species: {resty_route_param.species}\n"
-        f"- Temperature: {resty_route_param.temperature}°C\n"
-        f"- Dissolved Oxygen: {resty_route_param.dissolved_oxygen} mg/L\n"
-        f"- pH: {resty_route_param.ph}\n"
-        f"- Ammonia: {resty_route_param.ammonia} ppm\n"
-        f"- Nitrate: {resty_route_param.nitrate} ppm\n"
-        f"- Salinity: {resty_route_param.salinity} ppt\n"
-        f"- Transparency: {resty_route_param.transparency} cm"
+        f"- Species: {param.species}\n"
+        f"- Temperature: {param.temperature}°C\n"
+        f"- Dissolved Oxygen: {param.dissolved_oxygen} mg/L\n"
+        f"- pH: {param.ph}\n"
+        f"- Ammonia: {param.ammonia} ppm\n"
+        f"- Nitrate: {param.nitrate} ppm\n"
+        f"- Salinity: {param.salinity} ppt\n"
+        f"- Transparency: {param.transparency} cm"
     )
 
     # Payload for the external request
@@ -99,16 +78,3 @@ async def get_resty_response(resty_route_param: RestyRouteParam):
     except (KeyError, ValueError) as exc:
         return {"error": f"Unexpected response format: {str(exc)}"}
 
-# API endpoint
-@app.post("/resty/insights")
-async def chat(request: Request):
-    try:
-        body = await request.json()
-        params = RestyRouteParam(**body)  # Validate and parse the input
-        response_text = await get_resty_response(params)
-        return JSONResponse(content={"response": response_text})
-    except ValidationError as e:
-        return JSONResponse(content={"error": f"Invalid input: {e}"}, status_code=400)
-    except Exception as e:
-        return JSONResponse(content={"error": f"An unexpected error occurred: {str(e)}"}, status_code=500)
-        
