@@ -7,9 +7,9 @@ load_dotenv()
 app = FastAPI()
 
 # import routers
-from server.routers.insights_and_actions import router as insights_actions_routers
+from server.routers.llama import router as generate_router
 
-app.include_router(insights_actions_routers, prefix="/generate")
+app.include_router(generate_router, prefix="/generate")
 
 @app.get("/")
 def read_root():
