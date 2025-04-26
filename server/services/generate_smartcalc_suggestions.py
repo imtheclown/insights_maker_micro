@@ -10,40 +10,35 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-def format_result(text: str) -> dict:
-    data = {}
-    current_section = None
-    lines = text.splitlines()
+def format_result(response: str) -> dict:
+    # Regular expression to match the pattern for each section
+    pattern = r"\*\*(.+?)\*\*:\s*-\s+\*\*Insight:\*\*\s*(.+?)\s*-\s+\*\*Adjusted value:\*\*\s*(.+?)\s*-\s+\*\*Justification:\*\*\s*(.+?)"
+    matches = re.findall(pattern, response)
+    result = {}
 
-    for line in lines:
-        line = line.strip()
-        # Detect section headers
-        section_match = re.match(r"\*\*(.*?)\*\*", line)
-        if section_match:
-            current_section = section_match.group(1).strip()
-            data[current_section] = []
-        elif current_section:
-            if line:  # Skip empty lines
-                data[current_section].append(line)
-    
-    return data
+    for section, insight, adjusted_value, justification in matches:
+        # Convert section names to lowercase and use them as keys
+        result[section.lower()] = {
+            "insight": insight.strip(),
+            "adjusted_value": adjusted_value.strip(),
+            "justification": justification.strip()
+        }
+
+    return result
 
 async def generate_smartcalc_suggestions(param: CommodityModel):
     message_template = f"""
         Inputs:
         {str(param)}
-        Instructions:
-        - Analyze the provided data to identify specific areas of overspending or inefficiencies, with a focus on feed usage and manpower allocation.
-        - For each section, follow this format:
-        
-        **Format for Response**:
-        - Label each section as the specific part that has issues (e.g., "Feeds" or "Manpower").
-        - Clearly describe the identified issue in this part.
-        - Provide the recommended adjustment of value to address the issue, ensuring the recommendations are actionable and easy to implement.
-
-        - Focus on improving survival rate, Feed Conversion Ratio (FCR), and Average Body Weight (ABW), while minimizing costs.
-        - Use simple and accessible language to make the response easy to understand.
-        - Avoid providing summaries or conclusions; deliver focused content only.
+        Analyze the provided data to identify specific areas of overspending or inefficiencies
+        Response should only contain values with inefficiencies
+        Format for Response:  
+        **[Affected parameter]**:\n
+        - **Insight:** [Brief explanation about the value — is it good/bad, and why]\n
+        - **Adjusted value:** value
+        - **Justification:** justification for the adjusted value
+        Notes:  
+        - Keep the analysis sharply focused on individual sections; avoid overarching summaries or conclusions.  
         """
 
     payload = {
