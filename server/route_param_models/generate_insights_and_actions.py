@@ -1,11 +1,19 @@
 from pydantic import BaseModel
 
 class GenerateInsightActionsParams(BaseModel):
+    stocking_density: float
+    fcr: float
+    survival_rate: float
+    average_weight :float
     species: str
-    temperature: float
     dissolved_oxygen: float
-    ph: float
+    temperature: float
     ammonia: float
     nitrate: float
+    ph: float
     salinity: float
-    transparency: float
+    turbidity: float
+    culture_age_in_days: int
+
+
+

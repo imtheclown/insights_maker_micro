@@ -31,7 +31,7 @@ def extract_parameter_insights(response: str) -> dict:
 
 async def generate_insights_and_actions(param: GenerateInsightActionsParams):
     message_template = (
-        f"You are an expert in aquaculture. Based on the given water quality readings from a tilapia pond, "
+        f"You are an expert in aquaculture. Based on the readings of status from a pond, "
         f"provide short and specific insights and clear actions to address the issue . Focus only on what needs to be done."
         f"suggest products that can fix the problem, and active ingredient if applicable"
         f"Do not provide general advice or introductions.\n\nFormat:\n\n"
@@ -43,15 +43,8 @@ async def generate_insights_and_actions(param: GenerateInsightActionsParams):
         f"   - **Products:**\n"
         f"     - [product classification e.g. feed, medicine, etc] (active ingredient: [active ingredient])\n"
         f"     - [product classification e.g. feed, medicine, etc] (active ingredient: [active ingredient])\n\n"
-        f"Here are the current water quality parameters:\n\n"
-        f"- Species: {param.species}\n"
-        f"- Temperature: {param.temperature}°C\n"
-        f"- Dissolved Oxygen: {param.dissolved_oxygen} mg/L\n"
-        f"- pH: {param.ph}\n"
-        f"- Ammonia: {param.ammonia} ppm\n"
-        f"- Nitrate: {param.nitrate} ppm\n"
-        f"- Salinity: {param.salinity} ppt\n"
-        f"- Transparency: {param.transparency} cm"
+        f" here are the data of the pond"
+        f"{str(param)}"
     )
 
     # Payload for the external request
