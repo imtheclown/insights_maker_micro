@@ -10,36 +10,63 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
+import json
+
 def format_result(response: str) -> dict:
-    # Regular expression to match the pattern for each section
-    pattern = r"\*\*(.+?)\*\*:\s*-\s+\*\*Insight:\*\*\s*(.+?)\s*-\s+\*\*Adjusted value:\*\*\s*(.+?)\s*-\s+\*\*Justification:\*\*\s*(.+?)"
-    matches = re.findall(pattern, response)
-    result = {}
+    try:
+        parsed_response = json.loads(response)
 
-    for section, insight, adjusted_value, justification in matches:
-        # Convert section names to lowercase and use them as keys
-        result[section.lower()] = {
-            "insight": insight.strip(),
-            "adjusted_value": adjusted_value.strip(),
-            "justification": justification.strip()
-        }
+        # Validate structure
+        formatted_result = {}
+        for param, details in parsed_response.items():
+            if (
+                "insights" in details and
+                isinstance(details["insights"], list) and
+                "adjusted_value" in details and
+                "justification" in details
+            ):
+                formatted_result[param.lower()] = {
+                    "insights": [insight.strip() for insight in details["insights"]],
+                    "adjusted_value": details["adjusted_value"].strip(),
+                    "justification": details["justification"].strip()
+                }
+        return formatted_result
 
-    return result
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse JSON: {str(e)}")
+
 
 async def generate_smartcalc_suggestions(param: CommodityModel):
-    message_template = f"""
-        Inputs:
-        {str(param)}
-        Analyze the provided data to identify specific areas of overspending or inefficiencies
-        Response should only contain values with inefficiencies
-        Format for Response:  
-        **[Affected parameter]**:\n
-        - **Insight:** [Brief explanation about the value — is it good/bad, and why]\n
-        - **Adjusted value:** value
-        - **Justification:** justification for the adjusted value
-        Notes:  
-        - Keep the analysis sharply focused on individual sections; avoid overarching summaries or conclusions.  
-        """
+    message_template = (
+        f"Inputs:\n"
+        f"{str(param)}\n\n"
+        "You are an aquaculture production optimization expert.\n\n"
+        f"The size of the pond is {param.production_setup.area_volume}"
+        f"the commodity is {param.commodity}"
+        "The context is strictly in the Philippines, use peso as curency"
+        "Analyze the provided data to identify specific areas of overspending or inefficiencies.\n"
+        "Focus only on parameters that show inefficiency.\n"
+        "Do not provide introductions, conclusions, or summaries.\n\n"
+        "Your tasks:\n"
+        "- Identify only problematic or inefficient parameters.\n"
+        "- For each identified parameter:\n"
+        "  - Provide a clear, short insight why it is inefficient.\n"
+        "  - Suggest an adjusted value to correct the inefficiency.\n"
+        "  - Give a brief justification for the adjustment.\n\n"
+        "Format (strict):\n\n"
+        "```json\n"
+        "{\n"
+        "  \"[parameter name]\": {\n"
+        "    \"insights\": [\n"
+        "      \"Insight 1 [why this is an inefficiency or why this should be improved]\",\n"
+        "      \"Insight 2 (if necessary)\"\n"
+        "    ],\n"
+        "    \"adjusted_value\": \"value\",\n"
+        "    \"justification [how did you came up with the adjusted value]\": \"reason for adjustment\"\n"
+        "  }\n"
+        "}\n"
+        "```"
+    )
 
     payload = {
         "model": "meta-llama-3.1-8b-instruct",
@@ -58,6 +85,7 @@ async def generate_smartcalc_suggestions(param: CommodityModel):
             response = await client.post(URL, json=payload, headers=HEADERS, timeout=10)
             response.raise_for_status()
             result = response.json()
+            # return format_result(result["choices"][0]["message"]["content"])
             return format_result(result["choices"][0]["message"]["content"])
     except httpx.RequestError as exc:
         return {"error": f"An error occurred during the request: {str(exc)}"}

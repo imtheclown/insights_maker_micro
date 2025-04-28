@@ -1,6 +1,7 @@
 import os
 import httpx
-import re
+import json
+from fastapi import HTTPException
 from server.route_param_models.generate_insights_and_actions import GenerateInsightActionsParams
 
 TOKEN = os.getenv("FRIENDLI_KEY")
@@ -10,22 +11,10 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-def extract_parameter_insights(response: str) -> dict:
-    pattern = r"\d+\.\s+\*\*(.+?) \((.+?)\)\*\*:\s*-\s+\*\*Insight:\*\*\s*(.+?)\s*-\s+\*\*Actions:\*\*\s*((?:\s*-\s+.+\n?)*)\s*-\s+\*\*Products:\*\*\s*((?:\s*-\s+.+\n?)|None)"
-    matches = re.findall(pattern, response)
-    result = {}
-
-    for param, value, insight, actions, products in matches:
-        action_lines = [line.strip("- ").strip() for line in actions.strip().split("\n") if line.strip()]
-        product_lines = [line.strip("- ").strip() for line in products.strip().split("\n") if products.strip() != "None" and line.strip()]
-
-        result[param.lower()] = {
-            "value": value,
-            "insight": insight,
-            "actions": action_lines,
-            "products": product_lines if product_lines else []
-        }
-    return result
+def convert_to_json(response: str) -> dict:
+    # If response is a stringified JSON, parse it directly
+    parsed_response = json.loads(response)
+    return parsed_response
 
 async def generate_insights_and_actions(param: GenerateInsightActionsParams):
     message_template = (
@@ -45,6 +34,7 @@ async def generate_insights_and_actions(param: GenerateInsightActionsParams):
         f"commodity: {param.species}\n"
         f"culture age in days: {param.culture_age_in_days}\n\n"
         "Your tasks:\n"
+        "- do not provide introduction or conclusion"
         "- Identify parameters that may negatively affect the commodity.\n"
         "- Consider the commodity and the culture age for biological-based parameters like average weight, FCR, and survival rate.\n"
         "- For each problematic parameter:\n"
@@ -55,13 +45,17 @@ async def generate_insights_and_actions(param: GenerateInsightActionsParams):
         "```json\n"
         "{\n"
         "  \"[parameter name]\": {\n"
+        "   \"insights\": [\n"
+        "      \"insight 1\",\n"
+        "      \"insight 2 [if necessary]\"\n"
+        "    ],\n"
         "    \"actions\": [\n"
         "      \"Action step 1\",\n"
-        "      \"Action step 2\"\n"
+        "      \"Action step 2 [if necessary]\"\n"
         "    ],\n"
         "    \"products\": [\n"
-        "      \"chemical1\",\n"
-        "      \"chemical2\"\n"
+        "      \"product type 1 [feed, aerator, medicine, etc] ([active ingredient if product type is chemical])\",\n"
+        "      \"product type 2 [if necessary] [feed, aerator, medicine, etc] ([active ingredient if product type is chemical])\"\n"
         "    ]\n"
         "  }\n"
         "}\n"
@@ -82,10 +76,19 @@ async def generate_insights_and_actions(param: GenerateInsightActionsParams):
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(URL, json=payload, headers=HEADERS, timeout=10)
-            response.raise_for_status()
-            result = response.json()
-            return extract_parameter_insights(result["choices"][0]["message"]["content"])
+            try:
+                response = await client.post(URL, json=payload, headers=HEADERS, timeout=10)
+                response.raise_for_status()
+                result = response.json()
+                result = convert_to_json(result["choices"][0]["message"]["content"])
+                return result
+            except Exception as e:
+                print(e)
+                raise HTTPException(
+                status_code=400,
+                detail="Invalid request parameters."
+    )
+
     except httpx.RequestError as exc:
         error_detail = getattr(exc.response, 'text', str(exc))
         return {"error": f"Request error: {error_detail}"}
