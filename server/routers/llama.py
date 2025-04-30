@@ -32,3 +32,17 @@ async def generate_calculation_suggestions(request: Request):
         return JSONResponse(content={"error": f"Invalid input: {e}"}, status_code=400)
     except Exception as e:
         return JSONResponse(content={"error": f"An unexpected error occurred: {str(e)}"}, status_code=500)
+    
+from server.services.oscar_chatbot import generate_chatbots_response_for_oscar
+from server.route_param_models.chatbot import ChatBotParamModel
+@router.post("/oscar_chatbot/")
+async def generate_chatbot_response(request:Request):
+    try:
+        body = await request.json()
+        params = ChatBotParamModel(**body)
+        result = await generate_chatbots_response_for_oscar(params)
+        return result
+    except ValidationError as e:
+        return JSONResponse(content={"error": f"Invalid input: {e}"}, status_code=400)
+    except Exception as e:
+        return JSONResponse(content={"error": f"An unexpected error occurred: {str(e)}"}, status_code=500)
